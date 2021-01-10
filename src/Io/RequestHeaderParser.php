@@ -104,6 +104,9 @@ class RequestHeaderParser extends EventEmitter
             if ($contentLength === 0) {
                 $stream->emit('end');
                 $stream->close();
+                if ($request->hasHeader('Connection') && strtolower($request->getHeaderLine('Connection')) === 'keep-alive') {
+                    $that->handle($conn);
+                }
             }
         });
 

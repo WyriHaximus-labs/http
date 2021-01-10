@@ -2,6 +2,7 @@
 
 namespace React\Tests\Http\Io;
 
+use Psr\Http\Message\RequestInterface;
 use React\Http\Io\RequestHeaderParser;
 use React\Tests\Http\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
@@ -759,22 +760,67 @@ class RequestHeaderParserTest extends TestCase
         $this->assertEquals('this', $queryParams['test']);
     }
 
-    private function createGetRequest()
+    public function testConnectionReuse()
+    {
+        /** @var ServerRequestInterface $requests */
+        $requests = array();
+
+        $parser = new RequestHeaderParser();
+        $parser->on('headers', function ($request) use (&$requests) {
+            $requests[] = $request;
+        });
+
+        $connection = $this->getMockBuilder('React\Socket\Connection')->disableOriginalConstructor()->setMethods(null)->getMock();
+
+        $parser->handle($connection);
+
+        $data = $this->createGetRequest('keep-alive');
+        $connection->emit('data', array($data));
+        $connection->emit('data', array($data));
+
+        self::assertCount(2, $requests);
+        foreach ($requests as $request) {
+            self::assertSame('example.com', $request->getUri()->getHost());
+        }
+    }
+
+    public function testConnectionReuseRespectsConnectionHeader()
+    {
+        /** @var ServerRequestInterface $requests */
+        $requests = array();
+
+        $parser = new RequestHeaderParser();
+        $parser->on('headers', function ($request) use (&$requests) {
+            $requests[] = $request;
+        });
+
+        $connection = $this->getMockBuilder('React\Socket\Connection')->disableOriginalConstructor()->setMethods(null)->getMock();
+
+        $parser->handle($connection);
+
+        $data = $this->createGetRequest();
+        $connection->emit('data', array($data));
+        $connection->emit('data', array($data));
+
+        self::assertCount(1, $requests);
+    }
+
+    private function createGetRequest($connection = 'close')
     {
         $data = "GET / HTTP/1.1\r\n";
         $data .= "Host: example.com:80\r\n";
-        $data .= "Connection: close\r\n";
+        $data .= "Connection: $connection\r\n";
         $data .= "\r\n";
 
         return $data;
     }
 
-    private function createAdvancedPostRequest()
+    private function createAdvancedPostRequest($connection = 'close')
     {
         $data = "POST /foo?bar=baz HTTP/1.1\r\n";
         $data .= "Host: example.com:80\r\n";
         $data .= "User-Agent: react/alpha\r\n";
-        $data .= "Connection: close\r\n";
+        $data .= "Connection: $connection\r\n";
         $data .= "\r\n";
 
         return $data;
