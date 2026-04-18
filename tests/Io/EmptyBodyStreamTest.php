@@ -3,7 +3,6 @@
 namespace React\Tests\Http\Io;
 
 use React\Http\Io\EmptyBodyStream;
-use React\Stream\WritableStreamInterface;
 use React\Tests\Http\TestCase;
 
 class EmptyBodyStreamTest extends TestCase
@@ -127,7 +126,13 @@ class EmptyBodyStreamTest extends TestCase
 
     public function testSeek()
     {
-        $this->expectException(\BadMethodCallException::class);
+        $reflectionMethod = new \ReflectionMethod('\Psr\Http\Message\StreamInterface', 'eof');
+        if (PHP_VERSION_ID < 70000 || !$reflectionMethod->hasReturnType()) {
+            $this->setExpectedException('BadMethodCallException');
+        } else {
+            $this->setExpectedException('TypeError');
+        }
+
         $this->bodyStream->seek('');
     }
 
